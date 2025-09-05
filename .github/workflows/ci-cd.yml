@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}
 
 env:
-  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/devops-hello
+  IMAGE: ${{ secrets.kshakanksha }}/devops-hello
 
 jobs:
   build_and_push:
@@ -22,7 +22,7 @@ jobs:
         run: echo "tag=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Login to Docker Hub
-        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+        run: echo "${{ secrets.dckr_pat_skPoJbnnllzmsOEUP58E0FHhPt4 }}" | docker login -u "${{ secrets.kshakanksha }}" --password-stdin
 
       - name: Build image
         run: |
@@ -59,7 +59,7 @@ jobs:
           IMAGE="${IMAGE}:${TAG}"
           CONTAINER="devops-hello"
           PORT="8081"
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          echo "${{ secrets.dckr_pat_skPoJbnnllzmsOEUP58E0FHhPt4 }}" | docker login -u "${{ secrets.kshakanksha }}" --password-stdin
           docker pull "$IMAGE"
           docker rm -f "$CONTAINER" || true
           docker run -d --name "$CONTAINER" -p "$PORT:80" --restart=always "$IMAGE"
