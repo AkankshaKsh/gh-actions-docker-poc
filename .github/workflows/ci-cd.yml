@@ -1,0 +1,66 @@
+name: CI/CD - EC2 Docker Hello
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+env:
+  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/devops-hello
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: meta
+        run: echo "tag=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Build image
+        run: |
+          docker build -t "$IMAGE:${{ steps.meta.outputs.tag }}" -t "$IMAGE:latest" .
+
+      - name: Push image
+        run: |
+          docker push "$IMAGE:${{ steps.meta.outputs.tag }}"
+          docker push "$IMAGE:latest"
+
+  deploy:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Install SSH client
+        run: sudo apt-get update && sudo apt-get install -y openssh-client
+
+      - name: Prepare SSH key & known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          touch ~/.ssh/known_hosts
+          ssh-keyscan -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy on EC2
+        env:
+          IMAGE: ${{ env.IMAGE }}
+          TAG: ${{ needs.build_and_push.outputs.tag }}
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" -o StrictHostKeyChecking=yes "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << EOF
+          set -e
+          IMAGE="${IMAGE}:${TAG}"
+          CONTAINER="devops-hello"
+          PORT="8081"
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker pull "$IMAGE"
+          docker rm -f "$CONTAINER" || true
+          docker run -d --name "$CONTAINER" -p "$PORT:80" --restart=always "$IMAGE"
+          EOF
